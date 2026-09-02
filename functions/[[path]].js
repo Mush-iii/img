@@ -418,7 +418,7 @@ const PAGE_HTML = `<!DOCTYPE html>
 
     <div class="drop" id="drop">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12"/><path d="m7 8 5-5 5 5"/><path d="M5 21h14"/></svg>
-      <span id="dropLabel"><b>Click to browse</b>, drag a file, or paste from clipboard</span>
+      <span id="dropLabel">Click to browse, drag a file, or paste from clipboard</span>
       <input type="file" id="fileInput" accept="image/*" multiple>
     </div>
 
