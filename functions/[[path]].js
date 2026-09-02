@@ -15,7 +15,7 @@ const SLUG_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz01234567
 const SLUG_LENGTH = 6;
 const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15 MB
 const KEY_PREFIX = "";
-const TTL_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
+const TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const ALLOWED_TYPES = new Set([
   "image/jpeg",
   "image/png",
@@ -410,7 +410,7 @@ const PAGE_HTML = `<!DOCTYPE html>
     <div class="head">
       <div class="ttl-badge">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
-        Images auto-delete 3 days after upload
+        Images auto-delete 7 days after upload
       </div>
     </div>
 
