@@ -33,19 +33,12 @@ function randomSlug(length = SLUG_LENGTH) {
   return out;
 }
 
-// Keeps generating slugs until it finds one not already in the bucket.
-// R2 .head() returns null if the object doesn't exist, so this never
-// overwrites an existing file.
-async function generateUniqueSlug(bucket, ext, maxAttempts = 8) {
-  for (let i = 0; i < maxAttempts; i++) {
-    const slug = randomSlug();
-    const key = KEY_PREFIX + (ext ? `${slug}.${ext}` : slug);
-    const existing = await bucket.head(key);
-    if (existing === null) {
-      return key;
-    }
-  }
-  throw new Error("Could not generate a unique slug after multiple attempts");
+// No existence check: 6-char alphanumeric slug space is 62^6 (~56B), so
+// collision odds are negligible. Skipping the pre-upload head() saves a
+// full R2 round trip on every upload.
+function generateUniqueSlug(ext) {
+  const slug = randomSlug();
+  return KEY_PREFIX + (ext ? `${slug}.${ext}` : slug);
 }
 
 function getExtension(filename, mimeType) {
@@ -94,7 +87,7 @@ export async function onRequest(context) {
   const key = pathname.slice(1);
 
   if (request.method === "GET") {
-    return handleServe(key, env);
+    return handleServe(key, env, request, context);
   }
 
   if (request.method === "DELETE") {
@@ -133,12 +126,7 @@ async function handleUpload(request, env, url) {
   }
 
   const ext = getExtension(file.name || "", mimeType);
-  let key;
-  try {
-    key = await generateUniqueSlug(env.IMAGES, ext);
-  } catch (err) {
-    return jsonResponse({ error: "Failed to generate unique slug, try again" }, 500);
-  }
+  const key = generateUniqueSlug(ext);
 
   const uploadedAt = Date.now();
 
@@ -185,9 +173,16 @@ async function handleList(env, url) {
   return jsonResponse({ items, ttlMs: TTL_MS });
 }
 
-async function handleServe(key, env) {
+async function handleServe(key, env, request, context) {
   if (!key) return new Response("Not found", { status: 404 });
   if (!env.IMAGES) return new Response("R2 bucket not bound", { status: 500 });
+
+  // Slugs are random + content is immutable, so this is a perfect
+  // cache-forever case. Check CF's edge cache before touching R2 at all.
+  const cache = caches.default;
+  const cacheKey = new Request(request.url, request);
+  const cached = await cache.match(cacheKey);
+  if (cached) return cached;
 
   const object = await env.IMAGES.get(key);
   if (object === null) {
@@ -206,7 +201,10 @@ async function handleServe(key, env) {
   headers.set("etag", object.httpEtag);
   headers.set("cache-control", "public, max-age=31536000, immutable");
 
-  return new Response(object.body, { headers });
+  const response = new Response(object.body, { headers });
+  // Populate the edge cache in the background without blocking the response.
+  context.waitUntil(cache.put(cacheKey, response.clone()));
+  return response;
 }
 
 async function handleDelete(key, env) {
@@ -412,13 +410,13 @@ const PAGE_HTML = `<!DOCTYPE html>
     <div class="head">
       <div class="ttl-badge">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
-        images auto-delete 3 days after upload
+        Images auto-delete 3 days after upload
       </div>
     </div>
 
     <div class="drop" id="drop">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12"/><path d="m7 8 5-5 5 5"/><path d="M5 21h14"/></svg>
-      <span id="dropLabel">Click to browse, drag a file, or paste from clipboard</span>
+      <span id="dropLabel"><b>Click to browse</b>, drag a file, or paste from clipboard</span>
       <input type="file" id="fileInput" accept="image/*" multiple>
     </div>
 
