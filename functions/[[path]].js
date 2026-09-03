@@ -405,30 +405,54 @@ const PAGE_HTML = `<!DOCTYPE html>
   .head .ttl-badge svg { width: 13px; height: 13px; }
 
   .drop {
-    border: 1.5px dashed var(--border);
-    border-radius: var(--radius);
-    padding: 28px 20px;
-    text-align: center;
-    color: var(--muted);
-    font-size: 13.5px;
+    border: none;
+    border-radius: 50%;
+    width: 100px;
+    height: 100px;
+    margin: 0 auto;
+    padding: 0;
     cursor: pointer;
-    transition: border-color .15s, background .15s, transform .1s;
-    background: var(--panel);
+    overflow: hidden;
     display: flex;
-    align-items: center;
     justify-content: center;
-    gap: 10px;
+    align-items: center;
+    border: 2px solid rgb(1, 235, 252);
+    box-shadow: 0px 0px 100px rgb(1, 235, 252), inset 0px 0px 10px rgb(1, 235, 252), 0px 0px 5px rgb(255, 255, 255);
+    animation: dropFlicker 2s linear infinite;
   }
-  .drop:active { transform: scale(0.995); }
-  .drop.drag {
-    border-color: var(--accent);
-    background: var(--accent-soft);
-    color: var(--text);
+  .drop span { display: none; }
+  .drop:active { transform: scale(0.98); }
+  .drop.drag { animation-play-state: paused; }
+  .drop svg {
+    width: 2rem;
+    height: 2rem;
+    color: rgb(1, 235, 252);
+    flex-shrink: 0;
+    animation: iconFlicker 2s linear infinite;
   }
-  .drop svg { width: 17px; height: 17px; color: var(--muted); flex-shrink: 0; }
-  .drop.drag svg { color: var(--accent); }
-  .drop b { color: var(--text); font-weight: 600; }
-  input[type=file] { display: none; }
+  @keyframes dropFlicker {
+    0% { border: 2px solid rgb(1, 235, 252); box-shadow: 0px 0px 100px rgb(1, 235, 252), inset 0px 0px 10px rgb(1, 235, 252), 0px 0px 5px rgb(255, 255, 255); }
+    5% { border: none; box-shadow: none; }
+    10% { border: 2px solid rgb(1, 235, 252); box-shadow: 0px 0px 100px rgb(1, 235, 252), inset 0px 0px 10px rgb(1, 235, 252), 0px 0px 5px rgb(255, 255, 255); }
+    25% { border: none; box-shadow: none; }
+    30% { border: 2px solid rgb(1, 235, 252); box-shadow: 0px 0px 100px rgb(1, 235, 252), inset 0px 0px 10px rgb(1, 235, 252), 0px 0px 5px rgb(255, 255, 255); }
+    100% { border: 2px solid rgb(1, 235, 252); box-shadow: 0px 0px 100px rgb(1, 235, 252), inset 0px 0px 10px rgb(1, 235, 252), 0px 0px 5px rgb(255, 255, 255); }
+  }
+  @keyframes iconFlicker {
+    0% { opacity: 1; }
+    5% { opacity: 0.2; }
+    10% { opacity: 1; }
+    25% { opacity: 0.2; }
+    30% { opacity: 1; }
+    100% { opacity: 1; }
+  }
+  input[type=file] {
+    position: absolute;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    cursor: pointer !important;
+  }
 
   .queue { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; }
   .item {
@@ -547,9 +571,9 @@ const PAGE_HTML = `<!DOCTYPE html>
     </div>
 
     <div class="drop" id="drop">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12"/><path d="m7 8 5-5 5 5"/><path d="M5 21h14"/></svg>
-      <span id="dropLabel">Click to browse, drag a file, or paste from clipboard</span>
       <input type="file" id="fileInput" accept="image/*" multiple>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke-width="2" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-linecap="round"><polyline points="16 16 12 12 8 16"></polyline><line y2="21" x2="12" y1="12" x1="12"></line><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"></path><polyline points="16 16 12 12 8 16"></polyline></svg>
+      <span id="dropLabel">Click to browse, drag a file, or paste from clipboard</span>
     </div>
 
     <div class="queue" id="queue"></div>
@@ -845,26 +869,54 @@ function renderAdminPage(authed) {
   .topbar button:hover { color: var(--text); border-color: var(--accent); }
 
   .drop {
-    border: 1.5px dashed var(--border);
-    border-radius: var(--radius);
-    padding: 28px 20px;
-    text-align: center;
-    color: var(--muted);
-    font-size: 13.5px;
+    border: none;
+    border-radius: 50%;
+    width: 100px;
+    height: 100px;
+    margin: 0 auto;
+    padding: 0;
     cursor: pointer;
-    transition: border-color .15s, background .15s, transform .1s;
-    background: var(--panel);
+    overflow: hidden;
     display: flex;
-    align-items: center;
     justify-content: center;
-    gap: 10px;
+    align-items: center;
+    border: 2px solid rgb(1, 235, 252);
+    box-shadow: 0px 0px 100px rgb(1, 235, 252), inset 0px 0px 10px rgb(1, 235, 252), 0px 0px 5px rgb(255, 255, 255);
+    animation: dropFlicker 2s linear infinite;
   }
-  .drop:active { transform: scale(0.995); }
-  .drop.drag { border-color: var(--accent); background: var(--accent-soft); color: var(--text); }
-  .drop svg { width: 17px; height: 17px; color: var(--muted); flex-shrink: 0; }
-  .drop.drag svg { color: var(--accent); }
-  .drop b { color: var(--text); font-weight: 600; }
-  input[type=file] { display: none; }
+  .drop span { display: none; }
+  .drop:active { transform: scale(0.98); }
+  .drop.drag { animation-play-state: paused; }
+  .drop svg {
+    width: 2rem;
+    height: 2rem;
+    color: rgb(1, 235, 252);
+    flex-shrink: 0;
+    animation: iconFlicker 2s linear infinite;
+  }
+  @keyframes dropFlicker {
+    0% { border: 2px solid rgb(1, 235, 252); box-shadow: 0px 0px 100px rgb(1, 235, 252), inset 0px 0px 10px rgb(1, 235, 252), 0px 0px 5px rgb(255, 255, 255); }
+    5% { border: none; box-shadow: none; }
+    10% { border: 2px solid rgb(1, 235, 252); box-shadow: 0px 0px 100px rgb(1, 235, 252), inset 0px 0px 10px rgb(1, 235, 252), 0px 0px 5px rgb(255, 255, 255); }
+    25% { border: none; box-shadow: none; }
+    30% { border: 2px solid rgb(1, 235, 252); box-shadow: 0px 0px 100px rgb(1, 235, 252), inset 0px 0px 10px rgb(1, 235, 252), 0px 0px 5px rgb(255, 255, 255); }
+    100% { border: 2px solid rgb(1, 235, 252); box-shadow: 0px 0px 100px rgb(1, 235, 252), inset 0px 0px 10px rgb(1, 235, 252), 0px 0px 5px rgb(255, 255, 255); }
+  }
+  @keyframes iconFlicker {
+    0% { opacity: 1; }
+    5% { opacity: 0.2; }
+    10% { opacity: 1; }
+    25% { opacity: 0.2; }
+    30% { opacity: 1; }
+    100% { opacity: 1; }
+  }
+  input[type=file] {
+    position: absolute;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    cursor: pointer !important;
+  }
 
   .msg { margin-top: 14px; font-size: 12.5px; color: var(--err); opacity: 0; transition: opacity .2s; }
   .msg.show { opacity: 1; }
@@ -947,9 +999,9 @@ function renderAdminPage(authed) {
       <button id="logoutBtn">Log out</button>
     </div>
     <div class="drop" id="drop">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12"/><path d="m7 8 5-5 5 5"/><path d="M5 21h14"/></svg>
-      <span>Click to browse, drag files, or paste from clipboard</span>
       <input type="file" id="fileInput" accept="image/*" multiple>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke-width="2" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-linecap="round"><polyline points="16 16 12 12 8 16"></polyline><line y2="21" x2="12" y1="12" x1="12"></line><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"></path><polyline points="16 16 12 12 8 16"></polyline></svg>
+      <span>Click to browse, drag files, or paste from clipboard</span>
     </div>
     <div class="msg" id="msg"></div>
     <div class="gallery" id="gallery"></div>
