@@ -397,15 +397,16 @@ const PAGE_HTML = `<!DOCTYPE html>
     gap: 6px;
     padding: 5px 10px;
     border-radius: 999px;
-    background: var(--accent-soft);
-    color: #b3b3ff;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--muted);
     font-size: 11.5px;
-    font-weight: 600;
+    font-weight: 500;
   }
   .head .ttl-badge svg { width: 13px; height: 13px; }
 
   .drop {
-    border: none;
+    position: relative;
     border-radius: 50%;
     width: 100px;
     height: 100px;
@@ -419,6 +420,7 @@ const PAGE_HTML = `<!DOCTYPE html>
     border: 2px solid rgb(1, 235, 252);
     box-shadow: 0px 0px 100px rgb(1, 235, 252), inset 0px 0px 10px rgb(1, 235, 252), 0px 0px 5px rgb(255, 255, 255);
     animation: dropFlicker 2s linear infinite;
+    will-change: box-shadow;
   }
   .drop span { display: none; }
   .drop:active { transform: scale(0.98); }
@@ -431,12 +433,12 @@ const PAGE_HTML = `<!DOCTYPE html>
     animation: iconFlicker 2s linear infinite;
   }
   @keyframes dropFlicker {
-    0% { border: 2px solid rgb(1, 235, 252); box-shadow: 0px 0px 100px rgb(1, 235, 252), inset 0px 0px 10px rgb(1, 235, 252), 0px 0px 5px rgb(255, 255, 255); }
-    5% { border: none; box-shadow: none; }
-    10% { border: 2px solid rgb(1, 235, 252); box-shadow: 0px 0px 100px rgb(1, 235, 252), inset 0px 0px 10px rgb(1, 235, 252), 0px 0px 5px rgb(255, 255, 255); }
-    25% { border: none; box-shadow: none; }
-    30% { border: 2px solid rgb(1, 235, 252); box-shadow: 0px 0px 100px rgb(1, 235, 252), inset 0px 0px 10px rgb(1, 235, 252), 0px 0px 5px rgb(255, 255, 255); }
-    100% { border: 2px solid rgb(1, 235, 252); box-shadow: 0px 0px 100px rgb(1, 235, 252), inset 0px 0px 10px rgb(1, 235, 252), 0px 0px 5px rgb(255, 255, 255); }
+    0% { border-color: rgb(1, 235, 252); box-shadow: 0px 0px 100px rgb(1, 235, 252), inset 0px 0px 10px rgb(1, 235, 252), 0px 0px 5px rgb(255, 255, 255); }
+    5% { border-color: transparent; box-shadow: none; }
+    10% { border-color: rgb(1, 235, 252); box-shadow: 0px 0px 100px rgb(1, 235, 252), inset 0px 0px 10px rgb(1, 235, 252), 0px 0px 5px rgb(255, 255, 255); }
+    25% { border-color: transparent; box-shadow: none; }
+    30% { border-color: rgb(1, 235, 252); box-shadow: 0px 0px 100px rgb(1, 235, 252), inset 0px 0px 10px rgb(1, 235, 252), 0px 0px 5px rgb(255, 255, 255); }
+    100% { border-color: rgb(1, 235, 252); box-shadow: 0px 0px 100px rgb(1, 235, 252), inset 0px 0px 10px rgb(1, 235, 252), 0px 0px 5px rgb(255, 255, 255); }
   }
   @keyframes iconFlicker {
     0% { opacity: 1; }
@@ -869,7 +871,7 @@ function renderAdminPage(authed) {
   .topbar button:hover { color: var(--text); border-color: var(--accent); }
 
   .drop {
-    border: none;
+    position: relative;
     border-radius: 50%;
     width: 100px;
     height: 100px;
@@ -883,6 +885,7 @@ function renderAdminPage(authed) {
     border: 2px solid rgb(1, 235, 252);
     box-shadow: 0px 0px 100px rgb(1, 235, 252), inset 0px 0px 10px rgb(1, 235, 252), 0px 0px 5px rgb(255, 255, 255);
     animation: dropFlicker 2s linear infinite;
+    will-change: box-shadow;
   }
   .drop span { display: none; }
   .drop:active { transform: scale(0.98); }
@@ -895,12 +898,12 @@ function renderAdminPage(authed) {
     animation: iconFlicker 2s linear infinite;
   }
   @keyframes dropFlicker {
-    0% { border: 2px solid rgb(1, 235, 252); box-shadow: 0px 0px 100px rgb(1, 235, 252), inset 0px 0px 10px rgb(1, 235, 252), 0px 0px 5px rgb(255, 255, 255); }
-    5% { border: none; box-shadow: none; }
-    10% { border: 2px solid rgb(1, 235, 252); box-shadow: 0px 0px 100px rgb(1, 235, 252), inset 0px 0px 10px rgb(1, 235, 252), 0px 0px 5px rgb(255, 255, 255); }
-    25% { border: none; box-shadow: none; }
-    30% { border: 2px solid rgb(1, 235, 252); box-shadow: 0px 0px 100px rgb(1, 235, 252), inset 0px 0px 10px rgb(1, 235, 252), 0px 0px 5px rgb(255, 255, 255); }
-    100% { border: 2px solid rgb(1, 235, 252); box-shadow: 0px 0px 100px rgb(1, 235, 252), inset 0px 0px 10px rgb(1, 235, 252), 0px 0px 5px rgb(255, 255, 255); }
+    0% { border-color: rgb(1, 235, 252); box-shadow: 0px 0px 100px rgb(1, 235, 252), inset 0px 0px 10px rgb(1, 235, 252), 0px 0px 5px rgb(255, 255, 255); }
+    5% { border-color: transparent; box-shadow: none; }
+    10% { border-color: rgb(1, 235, 252); box-shadow: 0px 0px 100px rgb(1, 235, 252), inset 0px 0px 10px rgb(1, 235, 252), 0px 0px 5px rgb(255, 255, 255); }
+    25% { border-color: transparent; box-shadow: none; }
+    30% { border-color: rgb(1, 235, 252); box-shadow: 0px 0px 100px rgb(1, 235, 252), inset 0px 0px 10px rgb(1, 235, 252), 0px 0px 5px rgb(255, 255, 255); }
+    100% { border-color: rgb(1, 235, 252); box-shadow: 0px 0px 100px rgb(1, 235, 252), inset 0px 0px 10px rgb(1, 235, 252), 0px 0px 5px rgb(255, 255, 255); }
   }
   @keyframes iconFlicker {
     0% { opacity: 1; }
