@@ -15,7 +15,11 @@ const SLUG_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz01234567
 const SLUG_LENGTH = 6;
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
 const KEY_PREFIX = "";
+const PERM_PREFIX = "i/"; // permanent images live under this prefix; the cleanup worker skips it
 const TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const ADMIN_PIN = "6969";
+const ADMIN_COOKIE = "admin_auth";
+const ADMIN_SALT = "img-host-admin-v1"; // static salt, keeps auth stateless (no KV/session store needed)
 const ALLOWED_TYPES = new Set([
   "image/jpeg",
   "image/png",
@@ -36,9 +40,9 @@ function randomSlug(length = SLUG_LENGTH) {
 // No existence check: 6-char alphanumeric slug space is 62^6 (~56B), so
 // collision odds are negligible. Skipping the pre-upload head() saves a
 // full R2 round trip on every upload.
-function generateUniqueSlug(ext) {
+function generateUniqueSlug(ext, prefix = KEY_PREFIX) {
   const slug = randomSlug();
-  return KEY_PREFIX + (ext ? `${slug}.${ext}` : slug);
+  return prefix + (ext ? `${slug}.${ext}` : slug);
 }
 
 function getExtension(filename, mimeType) {
@@ -58,9 +62,30 @@ function getExtension(filename, mimeType) {
   return mimeExt[mimeType] || "bin";
 }
 
-function isExpired(uploadedAt) {
+function isExpired(key, uploadedAt) {
+  if (key && key.startsWith(PERM_PREFIX)) return false; // permanent, never expires
   if (!uploadedAt) return false;
   return Date.now() - Number(uploadedAt) > TTL_MS;
+}
+
+// ---------- Admin auth (stateless: cookie holds a hash of PIN+salt) ----------
+async function adminToken() {
+  const data = new TextEncoder().encode(ADMIN_SALT + ":" + ADMIN_PIN);
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  return [...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function getCookie(request, name) {
+  const header = request.headers.get("Cookie") || "";
+  const match = header.match(new RegExp(`(?:^|;\\s*)${name}=([^;]+)`));
+  return match ? match[1] : null;
+}
+
+async function isAdmin(request) {
+  const cookie = getCookie(request, ADMIN_COOKIE);
+  if (!cookie) return false;
+  const token = await adminToken();
+  return cookie === token;
 }
 
 // ---------- Pages Function entry point ----------
@@ -95,6 +120,31 @@ export async function onRequest(context) {
     return handleList(env, url);
   }
 
+  if (pathname === "/admin" && request.method === "GET") {
+    const authed = await isAdmin(request);
+    return new Response(renderAdminPage(authed), {
+      headers: { "content-type": "text/html; charset=utf-8" },
+    });
+  }
+
+  if (pathname === "/admin/login" && request.method === "POST") {
+    return handleAdminLogin(request);
+  }
+
+  if (pathname === "/admin/logout" && request.method === "POST") {
+    return handleAdminLogout();
+  }
+
+  if (pathname === "/admin/upload" && request.method === "POST") {
+    if (!(await isAdmin(request))) return jsonResponse({ error: "Unauthorized" }, 401);
+    return handleUpload(request, env, url, true);
+  }
+
+  if (pathname === "/admin/list" && request.method === "GET") {
+    if (!(await isAdmin(request))) return jsonResponse({ error: "Unauthorized" }, 401);
+    return handleAdminList(env, url);
+  }
+
   const key = pathname.slice(1);
 
   if (request.method === "GET") {
@@ -102,13 +152,13 @@ export async function onRequest(context) {
   }
 
   if (request.method === "DELETE") {
-    return handleDelete(key, env);
+    return handleDelete(key, env, request);
   }
 
   return new Response("Not found", { status: 404 });
 }
 
-async function handleUpload(request, env, url) {
+async function handleUpload(request, env, url, permanent = false) {
   if (!env.IMAGES) {
     return jsonResponse({ error: "R2 bucket not bound. Add an R2 binding named IMAGES in Pages settings." }, 500);
   }
@@ -137,13 +187,13 @@ async function handleUpload(request, env, url) {
   }
 
   const ext = getExtension(file.name || "", mimeType);
-  const key = generateUniqueSlug(ext);
+  const key = generateUniqueSlug(ext, permanent ? PERM_PREFIX : KEY_PREFIX);
 
   const uploadedAt = Date.now();
 
   await env.IMAGES.put(key, file.stream(), {
     httpMetadata: { contentType: mimeType },
-    customMetadata: { uploadedAt: String(uploadedAt) },
+    customMetadata: { uploadedAt: String(uploadedAt), permanent: permanent ? "true" : "false" },
   });
 
   return jsonResponse({
@@ -153,7 +203,8 @@ async function handleUpload(request, env, url) {
     size: file.size,
     type: mimeType,
     uploadedAt,
-    expiresAt: uploadedAt + TTL_MS,
+    permanent,
+    expiresAt: permanent ? null : uploadedAt + TTL_MS,
   });
 }
 
@@ -167,8 +218,9 @@ async function handleList(env, url) {
   do {
     const listing = await env.IMAGES.list({ prefix: KEY_PREFIX, cursor });
     for (const obj of listing.objects) {
+      if (obj.key.startsWith(PERM_PREFIX)) continue; // permanent images live in the admin gallery
       const uploadedAt = Number(obj.customMetadata?.uploadedAt) || null;
-      if (isExpired(uploadedAt)) continue; // lazily hide stale entries
+      if (isExpired(obj.key, uploadedAt)) continue; // lazily hide stale entries
       items.push({
         key: obj.key,
         url: `${url.origin}/${obj.key}`,
@@ -182,6 +234,31 @@ async function handleList(env, url) {
 
   items.sort((a, b) => (b.uploadedAt || 0) - (a.uploadedAt || 0));
   return jsonResponse({ items, ttlMs: TTL_MS });
+}
+
+async function handleAdminList(env, url) {
+  if (!env.IMAGES) {
+    return jsonResponse({ error: "R2 bucket not bound. Add an R2 binding named IMAGES in Pages settings." }, 500);
+  }
+
+  const items = [];
+  let cursor;
+  do {
+    const listing = await env.IMAGES.list({ prefix: PERM_PREFIX, cursor });
+    for (const obj of listing.objects) {
+      const uploadedAt = Number(obj.customMetadata?.uploadedAt) || null;
+      items.push({
+        key: obj.key,
+        url: `${url.origin}/${obj.key}`,
+        size: obj.size,
+        uploadedAt,
+      });
+    }
+    cursor = listing.truncated ? listing.cursor : undefined;
+  } while (cursor);
+
+  items.sort((a, b) => (b.uploadedAt || 0) - (a.uploadedAt || 0));
+  return jsonResponse({ items });
 }
 
 async function handleServe(key, env, request, context) {
@@ -201,7 +278,7 @@ async function handleServe(key, env, request, context) {
   }
 
   const uploadedAt = object.customMetadata?.uploadedAt;
-  if (isExpired(uploadedAt)) {
+  if (isExpired(key, uploadedAt)) {
     // Lazily purge on access past TTL.
     await env.IMAGES.delete(key);
     return new Response("Not found", { status: 404 });
@@ -218,11 +295,15 @@ async function handleServe(key, env, request, context) {
   return response;
 }
 
-async function handleDelete(key, env) {
-  // NOTE: no auth on this test version — add a secret-header check
-  // before exposing this publicly.
+async function handleDelete(key, env, request) {
   if (!key) return jsonResponse({ error: "No key provided" }, 400);
   if (!env.IMAGES) return jsonResponse({ error: "R2 bucket not bound" }, 500);
+
+  // Permanent images require the admin PIN — anyone can still delete their
+  // own session's regular (expiring) uploads, matching the existing behavior.
+  if (key.startsWith(PERM_PREFIX) && !(await isAdmin(request))) {
+    return jsonResponse({ error: "Unauthorized" }, 401);
+  }
 
   const existing = await env.IMAGES.head(key);
   if (existing === null) {
@@ -231,6 +312,37 @@ async function handleDelete(key, env) {
 
   await env.IMAGES.delete(key);
   return jsonResponse({ success: true, deleted: key });
+}
+
+async function handleAdminLogin(request) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ error: "Invalid JSON" }, 400);
+  }
+
+  const pin = String(body?.pin ?? "");
+  if (pin !== ADMIN_PIN) {
+    return jsonResponse({ error: "Incorrect PIN" }, 401);
+  }
+
+  const token = await adminToken();
+  return new Response(JSON.stringify({ success: true }), {
+    headers: {
+      "content-type": "application/json",
+      "Set-Cookie": `${ADMIN_COOKIE}=${token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000`,
+    },
+  });
+}
+
+function handleAdminLogout() {
+  return new Response(JSON.stringify({ success: true }), {
+    headers: {
+      "content-type": "application/json",
+      "Set-Cookie": `${ADMIN_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0`,
+    },
+  });
 }
 
 function jsonResponse(obj, status = 200) {
@@ -415,6 +527,14 @@ const PAGE_HTML = `<!DOCTYPE html>
   }
   .msg.show { opacity: 1; }
 
+  .foot { margin-top: 22px; text-align: center; }
+  .foot a {
+    color: var(--muted-2);
+    font-size: 11.5px;
+    text-decoration: none;
+  }
+  .foot a:hover { color: var(--muted); text-decoration: underline; }
+
 </style>
 </head>
 <body>
@@ -434,6 +554,7 @@ const PAGE_HTML = `<!DOCTYPE html>
 
     <div class="queue" id="queue"></div>
     <div class="msg" id="msg"></div>
+    <div class="foot"><a href="/admin">admin</a></div>
   </div>
 
 <script>
@@ -447,6 +568,7 @@ const PAGE_HTML = `<!DOCTYPE html>
     copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
     check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>',
     open: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/></svg>',
+    trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>',
   };
 
   function showMsg(text) {
@@ -579,6 +701,27 @@ const PAGE_HTML = `<!DOCTYPE html>
     openBtn.title = 'Open in new tab';
     openBtn.onclick = () => window.open(data.url, '_blank');
     actions.appendChild(openBtn);
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'danger';
+    delBtn.innerHTML = icons.trash;
+    delBtn.title = 'Delete';
+    delBtn.onclick = async () => {
+      delBtn.disabled = true;
+      try {
+        const res = await fetch('/' + data.key, { method: 'DELETE' });
+        if (res.ok) {
+          parts.row.remove();
+        } else {
+          delBtn.disabled = false;
+          showMsg('Failed to delete.');
+        }
+      } catch {
+        delBtn.disabled = false;
+        showMsg('Network error while deleting.');
+      }
+    };
+    actions.appendChild(delBtn);
   }
 
   function uploadFile(file) {
@@ -624,3 +767,463 @@ const PAGE_HTML = `<!DOCTYPE html>
 </script>
 </body>
 </html>`;
+
+function renderAdminPage(authed) {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>img · admin</title>
+<link rel="icon" type="image/png" href="/favicon.png">
+<style>
+  :root {
+    --bg: #0a0a0c;
+    --panel: #131316;
+    --panel-2: #1a1a1f;
+    --border: #232329;
+    --text: #ececef;
+    --muted: #86868f;
+    --muted-2: #55555e;
+    --accent: #6e6eff;
+    --accent-soft: rgba(110, 110, 255, 0.12);
+    --err: #ff6363;
+    --ok: #4ade80;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+      radial-gradient(circle at 20% -10%, rgba(110,110,255,0.08), transparent 40%),
+      var(--bg);
+    color: var(--text);
+    font-family: "Inter", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    padding: 48px 20px;
+  }
+  a { color: inherit; }
+
+  /* ---- pin screen ---- */
+  .pin-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 22px;
+  }
+  .pin-title { font-size: 1.1rem; font-weight: 700; color: var(--text); }
+  .pin-fields { display: flex; gap: 10px; }
+  .pin-fields input {
+    height: 3em;
+    width: 2.6em;
+    outline: none;
+    text-align: center;
+    font-family: inherit;
+    font-size: 1.6rem;
+    color: var(--text);
+    border-radius: 10px;
+    border: 1.5px solid var(--border);
+    background-color: var(--panel);
+    transition: border-color .15s, transform .15s;
+  }
+  .pin-fields input:focus {
+    border-color: var(--accent);
+    transform: scale(1.05);
+  }
+  .pin-fields input.err {
+    border-color: var(--err);
+    animation: shake .25s;
+  }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
+  }
+  .pin-msg { font-size: 12.5px; color: var(--err); opacity: 0; transition: opacity .2s; height: 1em; }
+  .pin-msg.show { opacity: 1; }
+
+  /* ---- dashboard ---- */
+  .wrap { width: 100%; max-width: 720px; display: none; }
+  .wrap.show { display: block; }
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 18px;
+  }
+  .topbar h1 { font-size: 1.1rem; margin: 0; }
+  .topbar button {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 7px 12px;
+    border-radius: 8px;
+    font-size: 12.5px;
+    cursor: pointer;
+  }
+  .topbar button:hover { color: var(--text); border-color: var(--accent); }
+
+  .drop {
+    border: 1.5px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 28px 20px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 13.5px;
+    cursor: pointer;
+    transition: border-color .15s, background .15s, transform .1s;
+    background: var(--panel);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+  .drop:active { transform: scale(0.995); }
+  .drop.drag { border-color: var(--accent); background: var(--accent-soft); color: var(--text); }
+  .drop svg { width: 17px; height: 17px; color: var(--muted); flex-shrink: 0; }
+  .drop.drag svg { color: var(--accent); }
+  .drop b { color: var(--text); font-weight: 600; }
+  input[type=file] { display: none; }
+
+  .msg { margin-top: 14px; font-size: 12.5px; color: var(--err); opacity: 0; transition: opacity .2s; }
+  .msg.show { opacity: 1; }
+
+  .gallery {
+    margin-top: 22px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 12px;
+  }
+  .card {
+    position: relative;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    animation: rise .18s ease;
+  }
+  @keyframes rise { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+  .card img {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    display: block;
+    background: var(--panel-2);
+  }
+  .card .bar2 {
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 3px;
+    background: var(--panel-2);
+    overflow: hidden;
+  }
+  .card .bar2 .fill2 { height: 100%; width: 0%; background: var(--accent); transition: width .15s; }
+  .card .cactions {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity .15s;
+  }
+  .card:hover .cactions { opacity: 1; }
+  .card button {
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(10,10,12,0.75);
+    backdrop-filter: blur(2px);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 7px;
+    cursor: pointer;
+  }
+  .card button svg { width: 13px; height: 13px; }
+  .card button:hover { color: var(--text); border-color: var(--accent); }
+  .card button.danger:hover { color: var(--err); border-color: var(--err); }
+  .empty { color: var(--muted-2); font-size: 13px; text-align: center; margin-top: 30px; }
+</style>
+</head>
+<body>
+
+  <div class="pin-wrap" id="pinWrap">
+    <div class="pin-title">Enter admin PIN</div>
+    <div class="pin-fields" id="pinFields">
+      <input maxlength="1" type="tel" inputmode="numeric" pattern="[0-9]*">
+      <input maxlength="1" type="tel" inputmode="numeric" pattern="[0-9]*">
+      <input maxlength="1" type="tel" inputmode="numeric" pattern="[0-9]*">
+      <input maxlength="1" type="tel" inputmode="numeric" pattern="[0-9]*">
+    </div>
+    <div class="pin-msg" id="pinMsg">Incorrect PIN</div>
+  </div>
+
+  <div class="wrap" id="dash">
+    <div class="topbar">
+      <h1>Permanent images</h1>
+      <button id="logoutBtn">Log out</button>
+    </div>
+    <div class="drop" id="drop">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12"/><path d="m7 8 5-5 5 5"/><path d="M5 21h14"/></svg>
+      <span>Click to browse, drag files, or paste from clipboard</span>
+      <input type="file" id="fileInput" accept="image/*" multiple>
+    </div>
+    <div class="msg" id="msg"></div>
+    <div class="gallery" id="gallery"></div>
+    <div class="empty" id="empty" style="display:none;">No permanent images yet.</div>
+  </div>
+
+<script>
+  const AUTHED = ${authed ? "true" : "false"};
+  const $ = (id) => document.getElementById(id);
+
+  const icons = {
+    copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
+    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>',
+    open: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/></svg>',
+    trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>',
+  };
+
+  // ---------------- PIN screen ----------------
+  const pinWrap = $('pinWrap');
+  const pinFields = $('pinFields');
+  const pinInputs = [...pinFields.querySelectorAll('input')];
+  const pinMsg = $('pinMsg');
+  const dash = $('dash');
+
+  function showDash() {
+    pinWrap.style.display = 'none';
+    dash.classList.add('show');
+    loadGallery();
+  }
+
+  if (AUTHED) {
+    showDash();
+  } else {
+    pinInputs[0].focus();
+  }
+
+  function clearPin(showError) {
+    pinInputs.forEach(i => { i.value = ''; if (showError) i.classList.add('err'); });
+    pinInputs[0].focus();
+    if (showError) {
+      pinMsg.classList.add('show');
+      setTimeout(() => {
+        pinInputs.forEach(i => i.classList.remove('err'));
+        pinMsg.classList.remove('show');
+      }, 900);
+    }
+  }
+
+  async function submitPin() {
+    const pin = pinInputs.map(i => i.value).join('');
+    try {
+      const res = await fetch('/admin/login', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ pin }),
+      });
+      if (res.ok) {
+        showDash();
+      } else {
+        clearPin(true);
+      }
+    } catch {
+      clearPin(true);
+    }
+  }
+
+  pinInputs.forEach((input, idx) => {
+    input.addEventListener('input', () => {
+      input.value = input.value.replace(/[^0-9]/g, '');
+      if (input.value && idx < pinInputs.length - 1) {
+        pinInputs[idx + 1].focus();
+      }
+      if (pinInputs.every(i => i.value)) {
+        submitPin();
+      }
+    });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Backspace' && !input.value && idx > 0) {
+        pinInputs[idx - 1].focus();
+      }
+    });
+  });
+
+  $('logoutBtn').addEventListener('click', async () => {
+    await fetch('/admin/logout', { method: 'POST' });
+    location.reload();
+  });
+
+  // ---------------- Dashboard ----------------
+  const drop = $('drop');
+  const fileInput = $('fileInput');
+  const msgBox = $('msg');
+  const gallery = $('gallery');
+  const emptyEl = $('empty');
+
+  function showMsg(text) {
+    msgBox.textContent = text;
+    msgBox.classList.add('show');
+    setTimeout(() => msgBox.classList.remove('show'), 3500);
+  }
+
+  drop.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', () => {
+    handleFiles(fileInput.files);
+    fileInput.value = '';
+  });
+  ['dragenter', 'dragover'].forEach(evt =>
+    drop.addEventListener(evt, (e) => { e.preventDefault(); drop.classList.add('drag'); })
+  );
+  ['dragleave', 'drop'].forEach(evt =>
+    drop.addEventListener(evt, (e) => { e.preventDefault(); drop.classList.remove('drag'); })
+  );
+  drop.addEventListener('drop', (e) => {
+    if (e.dataTransfer?.files?.length) handleFiles(e.dataTransfer.files);
+  });
+  document.addEventListener('paste', (e) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const files = [];
+    for (const item of items) {
+      if (item.kind === 'file' && item.type.startsWith('image/')) {
+        const f = item.getAsFile();
+        if (f) files.push(f);
+      }
+    }
+    if (files.length) { e.preventDefault(); handleFiles(files); }
+  });
+
+  function handleFiles(fileList) {
+    const files = Array.from(fileList).filter(f => f.type.startsWith('image/'));
+    if (!files.length) { showMsg('No image files found.'); return; }
+    files.forEach(uploadFile);
+  }
+
+  function buildCard(thumbSrc) {
+    const card = document.createElement('div');
+    card.className = 'card';
+    const img = document.createElement('img');
+    if (thumbSrc) img.src = thumbSrc;
+    card.appendChild(img);
+    const bar2 = document.createElement('div');
+    bar2.className = 'bar2';
+    const fill2 = document.createElement('div');
+    fill2.className = 'fill2';
+    bar2.appendChild(fill2);
+    card.appendChild(bar2);
+    return { card, img, fill2, bar2 };
+  }
+
+  function attachCardActions(card, data) {
+    const actions = document.createElement('div');
+    actions.className = 'cactions';
+
+    const copyBtn = document.createElement('button');
+    copyBtn.innerHTML = icons.copy;
+    copyBtn.title = 'Copy link';
+    copyBtn.onclick = () => {
+      navigator.clipboard.writeText(data.url);
+      copyBtn.innerHTML = icons.check;
+      setTimeout(() => copyBtn.innerHTML = icons.copy, 1200);
+    };
+    actions.appendChild(copyBtn);
+
+    const openBtn = document.createElement('button');
+    openBtn.innerHTML = icons.open;
+    openBtn.title = 'Open';
+    openBtn.onclick = () => window.open(data.url, '_blank');
+    actions.appendChild(openBtn);
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'danger';
+    delBtn.innerHTML = icons.trash;
+    delBtn.title = 'Delete permanently';
+    delBtn.onclick = async () => {
+      delBtn.disabled = true;
+      try {
+        const res = await fetch('/' + data.key, { method: 'DELETE' });
+        if (res.ok) {
+          card.remove();
+          if (!gallery.children.length) emptyEl.style.display = 'block';
+        } else {
+          delBtn.disabled = false;
+          showMsg('Failed to delete.');
+        }
+      } catch {
+        delBtn.disabled = false;
+        showMsg('Network error while deleting.');
+      }
+    };
+    actions.appendChild(delBtn);
+
+    card.appendChild(actions);
+  }
+
+  function uploadFile(file) {
+    const { card, img, fill2, bar2 } = buildCard(URL.createObjectURL(file));
+    gallery.prepend(card);
+    emptyEl.style.display = 'none';
+
+    const fd = new FormData();
+    fd.append('file', file, file.name || 'pasted-image.png');
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/admin/upload');
+
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable) {
+        fill2.style.width = Math.round((e.loaded / e.total) * 100) + '%';
+      }
+    });
+
+    xhr.onload = () => {
+      let data;
+      try { data = JSON.parse(xhr.responseText); } catch { data = null; }
+      bar2.remove();
+      if (xhr.status >= 200 && xhr.status < 300 && data?.success) {
+        attachCardActions(card, data);
+      } else {
+        card.remove();
+        showMsg(data?.error || 'Upload failed');
+      }
+    };
+    xhr.onerror = () => {
+      bar2.remove();
+      card.remove();
+      showMsg('Network error');
+    };
+    xhr.send(fd);
+  }
+
+  async function loadGallery() {
+    try {
+      const res = await fetch('/admin/list');
+      if (!res.ok) return;
+      const data = await res.json();
+      gallery.innerHTML = '';
+      if (!data.items?.length) {
+        emptyEl.style.display = 'block';
+        return;
+      }
+      emptyEl.style.display = 'none';
+      for (const item of data.items) {
+        const { card } = buildCard(item.url);
+        card.querySelector('.bar2')?.remove();
+        gallery.appendChild(card);
+        attachCardActions(card, item);
+      }
+    } catch {
+      showMsg('Failed to load gallery.');
+    }
+  }
+</script>
+</body>
+</html>`;
+}
