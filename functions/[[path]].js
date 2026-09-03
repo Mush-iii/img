@@ -700,27 +700,6 @@ const PAGE_HTML = `<!DOCTYPE html>
     openBtn.title = 'Open in new tab';
     openBtn.onclick = () => window.open(data.url, '_blank');
     actions.appendChild(openBtn);
-
-    const delBtn = document.createElement('button');
-    delBtn.className = 'danger';
-    delBtn.innerHTML = icons.trash;
-    delBtn.title = 'Delete';
-    delBtn.onclick = async () => {
-      delBtn.disabled = true;
-      try {
-        const res = await fetch('/' + data.key, { method: 'DELETE' });
-        if (res.ok) {
-          parts.row.remove();
-        } else {
-          delBtn.disabled = false;
-          showMsg('Failed to delete.');
-        }
-      } catch {
-        delBtn.disabled = false;
-        showMsg('Network error while deleting.');
-      }
-    };
-    actions.appendChild(delBtn);
   }
 
   function uploadFile(file) {
