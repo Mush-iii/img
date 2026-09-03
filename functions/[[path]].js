@@ -572,6 +572,14 @@ const PAGE_HTML = `<!DOCTYPE html>
 </style>
 </head>
 <body>
+  <div class="wrap">
+    <div class="head">
+      <div class="ttl-badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+        images auto-delete 1 week after upload
+      </div>
+    </div>
+
     <div class="drop-wrap">
       <div class="drop" id="drop">
         <input type="file" id="fileInput" accept="image/*" multiple>
