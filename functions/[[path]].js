@@ -408,8 +408,8 @@ const PAGE_HTML = `<!DOCTYPE html>
   .drop {
     position: relative;
     border-radius: 50%;
-    width: 100px;
-    height: 100px;
+    width: 88px;
+    height: 88px;
     margin: 0 auto;
     padding: 0;
     cursor: pointer;
@@ -417,43 +417,32 @@ const PAGE_HTML = `<!DOCTYPE html>
     display: flex;
     justify-content: center;
     align-items: center;
-    border: 2px solid rgb(1, 235, 252);
-    box-shadow: 0px 0px 100px rgb(1, 235, 252), inset 0px 0px 10px rgb(1, 235, 252), 0px 0px 5px rgb(255, 255, 255);
-    animation: dropFlicker 2s linear infinite;
-    will-change: box-shadow;
+    background: var(--panel);
+    border: 1.5px solid var(--border);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
+    transition: border-color .2s, box-shadow .2s, background .2s, transform .1s;
   }
   .drop span { display: none; }
-  .drop:active { transform: scale(0.98); }
-  .drop.drag { animation-play-state: paused; }
+  .drop:hover { border-color: var(--accent); box-shadow: 0 0 0 6px var(--accent-soft); }
+  .drop:active { transform: scale(0.96); }
+  .drop.drag { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 6px var(--accent-soft); }
   .drop svg {
-    width: 2rem;
-    height: 2rem;
-    color: rgb(1, 235, 252);
+    width: 1.6rem;
+    height: 1.6rem;
+    color: var(--muted);
     flex-shrink: 0;
-    animation: iconFlicker 2s linear infinite;
+    pointer-events: none;
+    transition: color .2s;
   }
-  @keyframes dropFlicker {
-    0% { border-color: rgb(1, 235, 252); box-shadow: 0px 0px 100px rgb(1, 235, 252), inset 0px 0px 10px rgb(1, 235, 252), 0px 0px 5px rgb(255, 255, 255); }
-    5% { border-color: transparent; box-shadow: none; }
-    10% { border-color: rgb(1, 235, 252); box-shadow: 0px 0px 100px rgb(1, 235, 252), inset 0px 0px 10px rgb(1, 235, 252), 0px 0px 5px rgb(255, 255, 255); }
-    25% { border-color: transparent; box-shadow: none; }
-    30% { border-color: rgb(1, 235, 252); box-shadow: 0px 0px 100px rgb(1, 235, 252), inset 0px 0px 10px rgb(1, 235, 252), 0px 0px 5px rgb(255, 255, 255); }
-    100% { border-color: rgb(1, 235, 252); box-shadow: 0px 0px 100px rgb(1, 235, 252), inset 0px 0px 10px rgb(1, 235, 252), 0px 0px 5px rgb(255, 255, 255); }
-  }
-  @keyframes iconFlicker {
-    0% { opacity: 1; }
-    5% { opacity: 0.2; }
-    10% { opacity: 1; }
-    25% { opacity: 0.2; }
-    30% { opacity: 1; }
-    100% { opacity: 1; }
-  }
+  .drop:hover svg, .drop.drag svg { color: var(--accent); }
   input[type=file] {
     position: absolute;
+    inset: 0;
     opacity: 0;
     width: 100%;
     height: 100%;
-    cursor: pointer !important;
+    cursor: pointer;
+    pointer-events: none;
   }
 
   .queue { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; }
@@ -873,8 +862,8 @@ function renderAdminPage(authed) {
   .drop {
     position: relative;
     border-radius: 50%;
-    width: 100px;
-    height: 100px;
+    width: 88px;
+    height: 88px;
     margin: 0 auto;
     padding: 0;
     cursor: pointer;
@@ -882,43 +871,32 @@ function renderAdminPage(authed) {
     display: flex;
     justify-content: center;
     align-items: center;
-    border: 2px solid rgb(1, 235, 252);
-    box-shadow: 0px 0px 100px rgb(1, 235, 252), inset 0px 0px 10px rgb(1, 235, 252), 0px 0px 5px rgb(255, 255, 255);
-    animation: dropFlicker 2s linear infinite;
-    will-change: box-shadow;
+    background: var(--panel);
+    border: 1.5px solid var(--border);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
+    transition: border-color .2s, box-shadow .2s, background .2s, transform .1s;
   }
   .drop span { display: none; }
-  .drop:active { transform: scale(0.98); }
-  .drop.drag { animation-play-state: paused; }
+  .drop:hover { border-color: var(--accent); box-shadow: 0 0 0 6px var(--accent-soft); }
+  .drop:active { transform: scale(0.96); }
+  .drop.drag { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 6px var(--accent-soft); }
   .drop svg {
-    width: 2rem;
-    height: 2rem;
-    color: rgb(1, 235, 252);
+    width: 1.6rem;
+    height: 1.6rem;
+    color: var(--muted);
     flex-shrink: 0;
-    animation: iconFlicker 2s linear infinite;
+    pointer-events: none;
+    transition: color .2s;
   }
-  @keyframes dropFlicker {
-    0% { border-color: rgb(1, 235, 252); box-shadow: 0px 0px 100px rgb(1, 235, 252), inset 0px 0px 10px rgb(1, 235, 252), 0px 0px 5px rgb(255, 255, 255); }
-    5% { border-color: transparent; box-shadow: none; }
-    10% { border-color: rgb(1, 235, 252); box-shadow: 0px 0px 100px rgb(1, 235, 252), inset 0px 0px 10px rgb(1, 235, 252), 0px 0px 5px rgb(255, 255, 255); }
-    25% { border-color: transparent; box-shadow: none; }
-    30% { border-color: rgb(1, 235, 252); box-shadow: 0px 0px 100px rgb(1, 235, 252), inset 0px 0px 10px rgb(1, 235, 252), 0px 0px 5px rgb(255, 255, 255); }
-    100% { border-color: rgb(1, 235, 252); box-shadow: 0px 0px 100px rgb(1, 235, 252), inset 0px 0px 10px rgb(1, 235, 252), 0px 0px 5px rgb(255, 255, 255); }
-  }
-  @keyframes iconFlicker {
-    0% { opacity: 1; }
-    5% { opacity: 0.2; }
-    10% { opacity: 1; }
-    25% { opacity: 0.2; }
-    30% { opacity: 1; }
-    100% { opacity: 1; }
-  }
+  .drop:hover svg, .drop.drag svg { color: var(--accent); }
   input[type=file] {
     position: absolute;
+    inset: 0;
     opacity: 0;
     width: 100%;
     height: 100%;
-    cursor: pointer !important;
+    cursor: pointer;
+    pointer-events: none;
   }
 
   .msg { margin-top: 14px; font-size: 12.5px; color: var(--err); opacity: 0; transition: opacity .2s; }
