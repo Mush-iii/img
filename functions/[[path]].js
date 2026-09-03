@@ -405,36 +405,55 @@ const PAGE_HTML = `<!DOCTYPE html>
   }
   .head .ttl-badge svg { width: 13px; height: 13px; }
 
+  .drop-wrap {
+    position: relative;
+    width: 96px;
+    height: 96px;
+    margin: 12px auto 28px;
+  }
   .drop {
     position: relative;
-    border-radius: 50%;
-    width: 88px;
-    height: 88px;
-    margin: 0 auto;
+    z-index: 2;
+    border-radius: 14px;
+    width: 96px;
+    height: 96px;
     padding: 0;
     cursor: pointer;
-    overflow: hidden;
     display: flex;
     justify-content: center;
     align-items: center;
     background: var(--panel);
-    border: 1.5px solid var(--border);
-    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
-    transition: border-color .2s, box-shadow .2s, background .2s, transform .1s;
+    border: 1px solid var(--border);
+    transition: transform .35s cubic-bezier(.2,.9,.3,1), box-shadow .35s ease, border-color .2s;
   }
+  .drop-wrap:hover .drop {
+    transform: translate(10px, -10px);
+    box-shadow: 0 18px 34px rgba(0,0,0,0.45);
+    border-color: var(--border);
+  }
+  .drop:active { transform: scale(0.97); }
+  .drop.drag { border-color: var(--accent); background: var(--accent-soft); }
   .drop span { display: none; }
-  .drop:hover { border-color: var(--accent); box-shadow: 0 0 0 6px var(--accent-soft); }
-  .drop:active { transform: scale(0.96); }
-  .drop.drag { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 6px var(--accent-soft); }
   .drop svg {
-    width: 1.6rem;
-    height: 1.6rem;
+    width: 1.5rem;
+    height: 1.5rem;
     color: var(--muted);
     flex-shrink: 0;
     pointer-events: none;
     transition: color .2s;
   }
-  .drop:hover svg, .drop.drag svg { color: var(--accent); }
+  .drop.drag svg { color: var(--accent); }
+  .drop-outline {
+    position: absolute;
+    z-index: 1;
+    inset: 0;
+    border-radius: 14px;
+    border: 1.5px dashed var(--accent);
+    background: transparent;
+    opacity: 0;
+    transition: opacity .3s ease;
+  }
+  .drop-wrap:hover .drop-outline { opacity: 0.8; }
   input[type=file] {
     position: absolute;
     inset: 0;
@@ -561,10 +580,13 @@ const PAGE_HTML = `<!DOCTYPE html>
       </div>
     </div>
 
-    <div class="drop" id="drop">
-      <input type="file" id="fileInput" accept="image/*" multiple>
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke-width="2" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-linecap="round"><polyline points="16 16 12 12 8 16"></polyline><line y2="21" x2="12" y1="12" x1="12"></line><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"></path><polyline points="16 16 12 12 8 16"></polyline></svg>
-      <span id="dropLabel">Click to browse, drag a file, or paste from clipboard</span>
+    <div class="drop-wrap">
+      <div class="drop" id="drop">
+        <input type="file" id="fileInput" accept="image/*" multiple>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke-width="2" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-linecap="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"></path><path d="M7 9l5 -5l5 5"></path><path d="M12 4l0 12"></path></svg>
+        <span id="dropLabel">Click to browse, drag a file, or paste from clipboard</span>
+      </div>
+      <div class="drop-outline"></div>
     </div>
 
     <div class="queue" id="queue"></div>
@@ -859,36 +881,55 @@ function renderAdminPage(authed) {
   }
   .topbar button:hover { color: var(--text); border-color: var(--accent); }
 
+  .drop-wrap {
+    position: relative;
+    width: 96px;
+    height: 96px;
+    margin: 12px auto 28px;
+  }
   .drop {
     position: relative;
-    border-radius: 50%;
-    width: 88px;
-    height: 88px;
-    margin: 0 auto;
+    z-index: 2;
+    border-radius: 14px;
+    width: 96px;
+    height: 96px;
     padding: 0;
     cursor: pointer;
-    overflow: hidden;
     display: flex;
     justify-content: center;
     align-items: center;
     background: var(--panel);
-    border: 1.5px solid var(--border);
-    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
-    transition: border-color .2s, box-shadow .2s, background .2s, transform .1s;
+    border: 1px solid var(--border);
+    transition: transform .35s cubic-bezier(.2,.9,.3,1), box-shadow .35s ease, border-color .2s;
   }
+  .drop-wrap:hover .drop {
+    transform: translate(10px, -10px);
+    box-shadow: 0 18px 34px rgba(0,0,0,0.45);
+    border-color: var(--border);
+  }
+  .drop:active { transform: scale(0.97); }
+  .drop.drag { border-color: var(--accent); background: var(--accent-soft); }
   .drop span { display: none; }
-  .drop:hover { border-color: var(--accent); box-shadow: 0 0 0 6px var(--accent-soft); }
-  .drop:active { transform: scale(0.96); }
-  .drop.drag { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 6px var(--accent-soft); }
   .drop svg {
-    width: 1.6rem;
-    height: 1.6rem;
+    width: 1.5rem;
+    height: 1.5rem;
     color: var(--muted);
     flex-shrink: 0;
     pointer-events: none;
     transition: color .2s;
   }
-  .drop:hover svg, .drop.drag svg { color: var(--accent); }
+  .drop.drag svg { color: var(--accent); }
+  .drop-outline {
+    position: absolute;
+    z-index: 1;
+    inset: 0;
+    border-radius: 14px;
+    border: 1.5px dashed var(--accent);
+    background: transparent;
+    opacity: 0;
+    transition: opacity .3s ease;
+  }
+  .drop-wrap:hover .drop-outline { opacity: 0.8; }
   input[type=file] {
     position: absolute;
     inset: 0;
@@ -979,10 +1020,13 @@ function renderAdminPage(authed) {
       <h1>Permanent images</h1>
       <button id="logoutBtn">Log out</button>
     </div>
-    <div class="drop" id="drop">
-      <input type="file" id="fileInput" accept="image/*" multiple>
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke-width="2" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-linecap="round"><polyline points="16 16 12 12 8 16"></polyline><line y2="21" x2="12" y1="12" x1="12"></line><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"></path><polyline points="16 16 12 12 8 16"></polyline></svg>
-      <span>Click to browse, drag files, or paste from clipboard</span>
+    <div class="drop-wrap">
+      <div class="drop" id="drop">
+        <input type="file" id="fileInput" accept="image/*" multiple>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke-width="2" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-linecap="round"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"></path><path d="M7 9l5 -5l5 5"></path><path d="M12 4l0 12"></path></svg>
+        <span>Click to browse, drag files, or paste from clipboard</span>
+      </div>
+      <div class="drop-outline"></div>
     </div>
     <div class="msg" id="msg"></div>
     <div class="gallery" id="gallery"></div>
