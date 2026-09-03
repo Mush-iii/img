@@ -13,7 +13,7 @@
 
 const SLUG_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 const SLUG_LENGTH = 6;
-const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15 MB
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
 const KEY_PREFIX = "";
 const TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const ALLOWED_TYPES = new Set([
