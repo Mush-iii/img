@@ -235,7 +235,7 @@ const PAGE_HTML = `<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>img</title>
-<link rel="icon" type="image/png" href="/favicon.png">
+<link rel="icon" type="image/png" href="https://raw.githubusercontent.com/Mush-iii/img/main/public/favicon.png">
 <style>
   :root {
     --bg: #0a0a0c;
