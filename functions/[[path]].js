@@ -554,8 +554,7 @@ const PAGE_HTML = `<!DOCTYPE html>
 
     <div class="queue" id="queue"></div>
     <div class="msg" id="msg"></div>
-    <div class="foot"><a href="/admin">admin</a></div>
-  </div>
+
 
 <script>
   const $ = (id) => document.getElementById(id);
