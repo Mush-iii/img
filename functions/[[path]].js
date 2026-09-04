@@ -113,7 +113,7 @@ export async function onRequest(context) {
   }
 
   if (pathname === "/upload" && request.method === "POST") {
-    return handleUpload(request, env, url, false, context);
+    return handleUpload(request, env, url);
   }
 
   if (pathname === "/list" && request.method === "GET") {
@@ -137,7 +137,7 @@ export async function onRequest(context) {
 
   if (pathname === "/admin/upload" && request.method === "POST") {
     if (!(await isAdmin(request))) return jsonResponse({ error: "Unauthorized" }, 401);
-    return handleUpload(request, env, url, true, context);
+    return handleUpload(request, env, url, true);
   }
 
   if (pathname === "/admin/list" && request.method === "GET") {
@@ -158,7 +158,7 @@ export async function onRequest(context) {
   return new Response("Not found", { status: 404 });
 }
 
-async function handleUpload(request, env, url, permanent = false, context) {
+async function handleUpload(request, env, url, permanent = false) {
   if (!env.IMAGES) {
     return jsonResponse({ error: "R2 bucket not bound. Add an R2 binding named IMAGES in Pages settings." }, 500);
   }
@@ -166,15 +166,6 @@ async function handleUpload(request, env, url, permanent = false, context) {
   const contentType = request.headers.get("content-type") || "";
   if (!contentType.includes("multipart/form-data")) {
     return jsonResponse({ error: "Expected multipart/form-data" }, 400);
-  }
-
-  // Fix 2: reject oversized uploads before buffering the body via formData().
-  // content-length includes multipart boundary/header overhead, so it's an
-  // upper bound on the file size, not exact - but it's enough to fail fast
-  // on anything way over the limit without receiving/parsing the whole body.
-  const declaredSize = Number(request.headers.get("content-length") || 0);
-  if (declaredSize > MAX_FILE_SIZE) {
-    return jsonResponse({ error: `File too large. Max ${MAX_FILE_SIZE / 1024 / 1024}MB` }, 413);
   }
 
   const formData = await request.formData();
@@ -200,21 +191,10 @@ async function handleUpload(request, env, url, permanent = false, context) {
 
   const uploadedAt = Date.now();
 
-  // Fix 1: don't block the response on the R2 write finishing. Kick off the
-  // put and let it complete in the background via waitUntil, and return the
-  // URL immediately. Tradeoff: if the URL is requested in the first instant
-  // after upload, before the write lands, handleServe will 404 on it.
-  const putPromise = env.IMAGES.put(key, file.stream(), {
+  await env.IMAGES.put(key, file.stream(), {
     httpMetadata: { contentType: mimeType },
     customMetadata: { uploadedAt: String(uploadedAt), permanent: permanent ? "true" : "false" },
   });
-  if (context?.waitUntil) {
-    context.waitUntil(putPromise);
-  } else {
-    // No context available (shouldn't happen given call sites) - fall back
-    // to awaiting so the upload still completes correctly.
-    await putPromise;
-  }
 
   return jsonResponse({
     success: true,
