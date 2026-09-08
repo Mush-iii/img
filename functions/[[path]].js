@@ -12,7 +12,7 @@
 // just loops and deletes anything past TTL.
 
 const SLUG_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-const SLUG_LENGTH = 6;
+const SLUG_LENGTH = 4;
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
 const KEY_PREFIX = "";
 const PERM_PREFIX = "i/"; // permanent images live under this prefix; the cleanup worker skips it
